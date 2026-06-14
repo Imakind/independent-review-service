@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "api:dev": "tsx src/api/index.ts",
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
     "db:migrate": "tsx src/db/migrate.ts",

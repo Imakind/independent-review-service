@@ -95,6 +95,7 @@ parent_object_id: example.com
 ```bash
 npm install
 npm run test
+npm run api:dev
 npm run dev
 ```
 

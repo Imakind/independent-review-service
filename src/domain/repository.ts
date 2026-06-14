@@ -1,6 +1,7 @@
 import type { ObjectIdentifier, Review, ReviewObject } from "./types.js";
 
 export interface ReviewRepository {
+  findObjectById(objectId: string): Promise<ReviewObject | null>;
   findObjectByIdentifier(platformKey: string, normalizedValue: string): Promise<ReviewObject | null>;
   findObjectByPlatformKey(platformKey: string): Promise<ReviewObject | null>;
   findObjectsByLooseValue(normalizedValue: string): Promise<ReviewObject[]>;
@@ -73,6 +74,10 @@ const identifiers: ObjectIdentifier[] = [
 const reviews: Review[] = [];
 
 export class InMemoryReviewRepository implements ReviewRepository {
+  async findObjectById(objectId: string): Promise<ReviewObject | null> {
+    return findObject(objectId);
+  }
+
   async findObjectByIdentifier(platformKey: string, normalizedValue: string): Promise<ReviewObject | null> {
     const identifier = identifiers.find(
       (item) => item.platformKey === platformKey && item.normalizedValue === normalizedValue,

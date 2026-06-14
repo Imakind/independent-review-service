@@ -38,6 +38,20 @@ type ReviewRow = {
 export class PostgresReviewRepository implements ReviewRepository {
   constructor(private readonly pool: pg.Pool) {}
 
+  async findObjectById(objectId: string): Promise<ReviewObject | null> {
+    const result = await this.pool.query<ObjectRow>(
+      `
+        SELECT *
+        FROM objects
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [objectId],
+    );
+
+    return result.rows[0] ? mapObject(result.rows[0]) : null;
+  }
+
   async findObjectByIdentifier(platformKey: string, normalizedValue: string): Promise<ReviewObject | null> {
     const result = await this.pool.query<ObjectRow>(
       `
