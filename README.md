@@ -96,6 +96,9 @@ parent_object_id: example.com
 - `POST /search` — поиск по идентификатору.
 - `GET /objects/:id` — карточка объекта со сводкой опубликованных отзывов.
 - `POST /reviews` — создание отзыва со статусом `pending`.
+- `POST /reports` — жалоба на отзыв.
+- `GET /admin/reviews?status=pending` — список отзывов для модерации.
+- `POST /admin/reviews/:id/moderate` — публикация, отклонение или скрытие отзыва.
 
 ## Локальный запуск
 

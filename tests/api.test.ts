@@ -76,4 +76,60 @@ describe("API", () => {
     expect(body.review.status).toBe("pending");
     expect(body.review.category).toBe("fraud");
   });
+
+  it("reports and moderates a review", async () => {
+    const reviewResponse = await fetch(`${baseUrl}/reviews`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        target: "example.com/seller/ivan123",
+        authorUserId: "api-test",
+        rating: "negative",
+        category: "non_delivery",
+        text: "Оплата прошла, услуга не была оказана.",
+      }),
+    });
+    const created = await reviewResponse.json();
+
+    const reportResponse = await fetch(`${baseUrl}/reports`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        reviewId: created.review.id,
+        reporterUserId: "reporter",
+        reason: "insufficient_evidence",
+        comment: "Нет подтверждений.",
+      }),
+    });
+    const reportBody = await reportResponse.json();
+
+    expect(reportResponse.status).toBe(201);
+    expect(reportBody.report.status).toBe("open");
+
+    const pendingResponse = await fetch(`${baseUrl}/admin/reviews?status=pending`);
+    const pendingBody = await pendingResponse.json();
+
+    expect(pendingResponse.status).toBe(200);
+    expect(pendingBody.reviews.some((review: { id: string }) => review.id === created.review.id)).toBe(true);
+
+    const moderateResponse = await fetch(`${baseUrl}/admin/reviews/${created.review.id}/moderate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "publish",
+        actorUserId: "admin",
+        comment: "Проверено для MVP.",
+      }),
+    });
+    const moderated = await moderateResponse.json();
+
+    expect(moderateResponse.status).toBe(200);
+    expect(moderated.review.status).toBe("published");
+
+    const objectResponse = await fetch(`${baseUrl}/objects/${created.object.id}`);
+    const objectBody = await objectResponse.json();
+
+    expect(objectBody.summary.total).toBe(1);
+    expect(objectBody.summary.negative).toBe(1);
+  });
 });

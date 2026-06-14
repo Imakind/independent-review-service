@@ -1,4 +1,4 @@
-import type { ObjectIdentifier, Review, ReviewObject } from "./types.js";
+import type { ModerationAction, ObjectIdentifier, Report, Review, ReviewObject, ReviewStatus } from "./types.js";
 
 export interface ReviewRepository {
   findObjectById(objectId: string): Promise<ReviewObject | null>;
@@ -7,6 +7,8 @@ export interface ReviewRepository {
   findObjectsByLooseValue(normalizedValue: string): Promise<ReviewObject[]>;
   findIdentifiersByValue(normalizedValue: string): Promise<ObjectIdentifier[]>;
   findReviewsByObjectId(objectId: string): Promise<Review[]>;
+  findReviewsByStatus(status: ReviewStatus): Promise<Review[]>;
+  findReviewById(reviewId: string): Promise<Review | null>;
   ensureObjectWithIdentifier(input: {
     type: ReviewObject["type"];
     parentObjectId: string | null;
@@ -25,6 +27,19 @@ export interface ReviewRepository {
     evidenceRefs: string[];
     status: Review["status"];
   }): Promise<Review>;
+  createReport(input: {
+    reviewId: string;
+    reporterUserId: string;
+    reason: Report["reason"];
+    comment: string | null;
+  }): Promise<Report>;
+  updateReviewStatus(input: {
+    reviewId: string;
+    status: ReviewStatus;
+    actorUserId: string;
+    action: ModerationAction;
+    comment: string | null;
+  }): Promise<Review | null>;
 }
 
 const now = new Date("2026-06-14T00:00:00.000Z");
@@ -72,6 +87,7 @@ const identifiers: ObjectIdentifier[] = [
 ];
 
 const reviews: Review[] = [];
+const reports: Report[] = [];
 
 export class InMemoryReviewRepository implements ReviewRepository {
   async findObjectById(objectId: string): Promise<ReviewObject | null> {
@@ -103,6 +119,14 @@ export class InMemoryReviewRepository implements ReviewRepository {
 
   async findReviewsByObjectId(objectId: string): Promise<Review[]> {
     return reviews.filter((review) => review.objectId === objectId && review.status === "published");
+  }
+
+  async findReviewsByStatus(status: ReviewStatus): Promise<Review[]> {
+    return reviews.filter((review) => review.status === status);
+  }
+
+  async findReviewById(reviewId: string): Promise<Review | null> {
+    return reviews.find((review) => review.id === reviewId) ?? null;
   }
 
   async ensureObjectWithIdentifier(input: {
@@ -166,6 +190,43 @@ export class InMemoryReviewRepository implements ReviewRepository {
     };
 
     reviews.push(review);
+    return review;
+  }
+
+  async createReport(input: {
+    reviewId: string;
+    reporterUserId: string;
+    reason: Report["reason"];
+    comment: string | null;
+  }): Promise<Report> {
+    const report: Report = {
+      id: `report_${reports.length + 1}`,
+      reviewId: input.reviewId,
+      reporterUserId: input.reporterUserId,
+      reason: input.reason,
+      comment: input.comment,
+      status: "open",
+      createdAt: new Date(),
+    };
+
+    reports.push(report);
+    return report;
+  }
+
+  async updateReviewStatus(input: {
+    reviewId: string;
+    status: ReviewStatus;
+    actorUserId: string;
+    action: ModerationAction;
+    comment: string | null;
+  }): Promise<Review | null> {
+    const review = reviews.find((item) => item.id === input.reviewId);
+    if (!review) {
+      return null;
+    }
+
+    review.status = input.status;
+    review.updatedAt = new Date();
     return review;
   }
 }

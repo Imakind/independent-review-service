@@ -88,6 +88,16 @@ platform_key + identifier_type + normalized_value
 
 История модерационных действий.
 
+## Admin API
+
+Если задан `ADMIN_TOKEN`, admin-запросы должны передавать его в заголовке:
+
+```text
+x-admin-token: value
+```
+
+В dev-режиме без `ADMIN_TOKEN` admin-endpoints открыты локально.
+
 ## Проверочные SQL-запросы
 
 Список таблиц:

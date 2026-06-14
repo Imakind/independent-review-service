@@ -1,5 +1,5 @@
 import type pg from "pg";
-import type { ObjectIdentifier, Review, ReviewObject } from "../domain/types.js";
+import type { ModerationAction, ObjectIdentifier, Report, Review, ReviewObject, ReviewStatus } from "../domain/types.js";
 import type { ReviewRepository } from "../domain/repository.js";
 
 type ObjectRow = {
@@ -33,6 +33,16 @@ type ReviewRow = {
   status: Review["status"];
   created_at: Date;
   updated_at: Date;
+};
+
+type ReportRow = {
+  id: string;
+  review_id: string;
+  reporter_user_id: string;
+  reason: Report["reason"];
+  comment: string | null;
+  status: Report["status"];
+  created_at: Date;
 };
 
 export class PostgresReviewRepository implements ReviewRepository {
@@ -131,6 +141,35 @@ export class PostgresReviewRepository implements ReviewRepository {
     return result.rows.map(mapReview);
   }
 
+  async findReviewsByStatus(status: ReviewStatus): Promise<Review[]> {
+    const result = await this.pool.query<ReviewRow>(
+      `
+        SELECT *
+        FROM reviews
+        WHERE status = $1
+        ORDER BY created_at DESC
+        LIMIT 50
+      `,
+      [status],
+    );
+
+    return result.rows.map(mapReview);
+  }
+
+  async findReviewById(reviewId: string): Promise<Review | null> {
+    const result = await this.pool.query<ReviewRow>(
+      `
+        SELECT *
+        FROM reviews
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [reviewId],
+    );
+
+    return result.rows[0] ? mapReview(result.rows[0]) : null;
+  }
+
   async ensureObjectWithIdentifier(input: {
     type: ReviewObject["type"];
     parentObjectId: string | null;
@@ -219,6 +258,79 @@ export class PostgresReviewRepository implements ReviewRepository {
 
     return mapReview(result.rows[0]);
   }
+
+  async createReport(input: {
+    reviewId: string;
+    reporterUserId: string;
+    reason: Report["reason"];
+    comment: string | null;
+  }): Promise<Report> {
+    const result = await this.pool.query<ReportRow>(
+      `
+        INSERT INTO reports (
+          review_id,
+          reporter_user_id,
+          reason,
+          comment,
+          status
+        )
+        VALUES ($1, $2, $3, $4, 'open')
+        RETURNING *
+      `,
+      [input.reviewId, input.reporterUserId, input.reason, input.comment],
+    );
+
+    return mapReport(result.rows[0]);
+  }
+
+  async updateReviewStatus(input: {
+    reviewId: string;
+    status: ReviewStatus;
+    actorUserId: string;
+    action: ModerationAction;
+    comment: string | null;
+  }): Promise<Review | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query<ReviewRow>(
+        `
+          UPDATE reviews
+          SET status = $2,
+              updated_at = now()
+          WHERE id = $1
+          RETURNING *
+        `,
+        [input.reviewId, input.status],
+      );
+
+      if (!result.rows[0]) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      await client.query(
+        `
+          INSERT INTO moderation_events (
+            review_id,
+            actor_user_id,
+            action,
+            comment
+          )
+          VALUES ($1, $2, $3, $4)
+        `,
+        [input.reviewId, input.actorUserId, input.action, input.comment],
+      );
+
+      await client.query("COMMIT");
+      return mapReview(result.rows[0]);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 function mapObject(row: ObjectRow): ReviewObject {
@@ -257,5 +369,17 @@ function mapReview(row: ReviewRow): Review {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapReport(row: ReportRow): Report {
+  return {
+    id: row.id,
+    reviewId: row.review_id,
+    reporterUserId: row.reporter_user_id,
+    reason: row.reason,
+    comment: row.comment,
+    status: row.status,
+    createdAt: row.created_at,
   };
 }

@@ -31,6 +31,12 @@ export type ReviewStatus = "pending" | "published" | "rejected" | "hidden";
 
 export type ReviewCategory = "fraud" | "non_delivery" | "quality" | "communication" | "other";
 
+export type ReportReason = "spam" | "defamation" | "personal_data" | "duplicate" | "insufficient_evidence";
+
+export type ReportStatus = "open" | "accepted" | "rejected";
+
+export type ModerationAction = "publish" | "reject" | "hide";
+
 export interface ReviewObject {
   id: string;
   type: ObjectType;
@@ -62,6 +68,16 @@ export interface Review {
   status: ReviewStatus;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface Report {
+  id: string;
+  reviewId: string;
+  reporterUserId: string;
+  reason: ReportReason;
+  comment: string | null;
+  status: ReportStatus;
+  createdAt: Date;
 }
 
 export interface NormalizedIdentifier {

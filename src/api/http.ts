@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { isModerationAction, isReportReason, isReviewStatus, statusFromModerationAction } from "../domain/moderation.js";
 import { normalizeIdentifier } from "../domain/normalization.js";
 import type { ReviewRepository } from "../domain/repository.js";
 import { createReviewForTarget, isReviewCategory, isReviewRating, summarizeReviews } from "../domain/reviews.js";
@@ -39,6 +40,18 @@ export function createApiServer(repository: ReviewRepository): Server {
 
     if (method === "POST" && url.pathname === "/reviews") {
       return postReview;
+    }
+
+    if (method === "POST" && url.pathname === "/reports") {
+      return postReport;
+    }
+
+    if (method === "GET" && url.pathname === "/admin/reviews") {
+      return getAdminReviews;
+    }
+
+    if (method === "POST" && /^\/admin\/reviews\/[^/]+\/moderate$/.test(url.pathname)) {
+      return postAdminModerateReview;
     }
 
     return null;
@@ -126,6 +139,91 @@ export function createApiServer(repository: ReviewRepository): Server {
 
     sendJson(response, 201, result);
   }
+
+  async function postReport(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const body = await readJson<{
+      reviewId?: unknown;
+      reporterUserId?: unknown;
+      reason?: unknown;
+      comment?: unknown;
+    }>(request);
+
+    if (typeof body.reviewId !== "string" || !body.reviewId.trim()) {
+      sendJson(response, 400, { error: "review_id_required" });
+      return;
+    }
+
+    const review = await repository.findReviewById(body.reviewId);
+    if (!review) {
+      sendJson(response, 404, { error: "review_not_found" });
+      return;
+    }
+
+    if (!isReportReason(body.reason)) {
+      sendJson(response, 400, { error: "reason_invalid" });
+      return;
+    }
+
+    const report = await repository.createReport({
+      reviewId: body.reviewId,
+      reporterUserId:
+        typeof body.reporterUserId === "string" && body.reporterUserId ? body.reporterUserId : "api",
+      reason: body.reason,
+      comment: typeof body.comment === "string" && body.comment.trim() ? body.comment.trim() : null,
+    });
+
+    sendJson(response, 201, { report });
+  }
+
+  async function getAdminReviews(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
+    if (!isAdminRequest(request)) {
+      sendJson(response, 401, { error: "admin_token_required" });
+      return;
+    }
+
+    const status = url.searchParams.get("status") ?? "pending";
+    if (!isReviewStatus(status)) {
+      sendJson(response, 400, { error: "status_invalid" });
+      return;
+    }
+
+    const reviews = await repository.findReviewsByStatus(status);
+    sendJson(response, 200, { reviews });
+  }
+
+  async function postAdminModerateReview(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
+    if (!isAdminRequest(request)) {
+      sendJson(response, 401, { error: "admin_token_required" });
+      return;
+    }
+
+    const reviewId = decodeURIComponent(url.pathname.split("/")[3] ?? "");
+    const body = await readJson<{
+      action?: unknown;
+      actorUserId?: unknown;
+      comment?: unknown;
+    }>(request);
+
+    if (!isModerationAction(body.action)) {
+      sendJson(response, 400, { error: "action_invalid" });
+      return;
+    }
+
+    const review = await repository.updateReviewStatus({
+      reviewId,
+      status: statusFromModerationAction(body.action),
+      actorUserId: typeof body.actorUserId === "string" && body.actorUserId ? body.actorUserId : "admin",
+      action: body.action,
+      comment: typeof body.comment === "string" && body.comment.trim() ? body.comment.trim() : null,
+    });
+
+    if (!review) {
+      sendJson(response, 404, { error: "review_not_found" });
+      return;
+    }
+
+    sendJson(response, 200, { review });
+  }
 }
 
 async function readJson<T>(request: IncomingMessage): Promise<T> {
@@ -146,4 +244,13 @@ function sendJson(response: ServerResponse, statusCode: number, body: unknown): 
     "content-type": "application/json; charset=utf-8",
   });
   response.end(JSON.stringify(body));
+}
+
+function isAdminRequest(request: IncomingMessage): boolean {
+  const token = process.env.ADMIN_TOKEN;
+  if (!token) {
+    return true;
+  }
+
+  return request.headers["x-admin-token"] === token;
 }
