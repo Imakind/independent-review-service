@@ -27,7 +27,7 @@ type ReviewRow = {
   object_id: string;
   author_user_id: string;
   rating: Review["rating"];
-  category: string;
+  category: Review["category"];
   text: string;
   evidence_refs: string[];
   status: Review["status"];

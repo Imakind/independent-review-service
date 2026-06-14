@@ -18,7 +18,7 @@ describe("InMemoryReviewRepository", () => {
       objectId: object.id,
       authorUserId: "42",
       rating: "negative",
-      category: "general",
+      category: "fraud",
       text: "Оплата была, товар не отправили.",
       evidenceRefs: [],
       status: "pending",

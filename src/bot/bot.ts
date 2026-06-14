@@ -2,8 +2,15 @@ import { Bot, session } from "grammy";
 import { normalizeIdentifier } from "../domain/normalization.js";
 import { InMemoryReviewRepository } from "../domain/repository.js";
 import type { ReviewRepository } from "../domain/repository.js";
+import { createReviewForTarget } from "../domain/reviews.js";
 import { searchObject } from "../domain/search.js";
-import { cancelKeyboard, mainMenuKeyboard, resultKeyboard, reviewRatingKeyboard } from "./keyboards.js";
+import {
+  cancelKeyboard,
+  mainMenuKeyboard,
+  resultKeyboard,
+  reviewCategoryKeyboard,
+  reviewRatingKeyboard,
+} from "./keyboards.js";
 import { HELP_TEXT, RULES_TEXT, START_TEXT, formatSearchResult } from "./messages.js";
 import { type BotContext, initialSession } from "./session.js";
 
@@ -46,6 +53,14 @@ export function createBot(token: string, repository: ReviewRepository = new InMe
   bot.callbackQuery(/^review:rating:(positive|neutral|negative)$/, async (ctx) => {
     const rating = ctx.match[1] as "positive" | "neutral" | "negative";
     ctx.session.reviewRating = rating;
+    ctx.session.mode = "waiting_review_category";
+    await ctx.answerCallbackQuery();
+    await ctx.reply("Выберите категорию.", { reply_markup: reviewCategoryKeyboard() });
+  });
+
+  bot.callbackQuery(/^review:category:(fraud|non_delivery|quality|communication|other)$/, async (ctx) => {
+    const category = ctx.match[1] as "fraud" | "non_delivery" | "quality" | "communication" | "other";
+    ctx.session.reviewCategory = category;
     ctx.session.mode = "waiting_review_text";
     await ctx.answerCallbackQuery();
     await ctx.reply(
@@ -74,6 +89,7 @@ export function createBot(token: string, repository: ReviewRepository = new InMe
     ctx.session.mode = "idle";
     delete ctx.session.reviewTarget;
     delete ctx.session.reviewRating;
+    delete ctx.session.reviewCategory;
     await ctx.reply("Действие отменено.", { reply_markup: mainMenuKeyboard() });
   });
 
@@ -102,35 +118,28 @@ export function createBot(token: string, repository: ReviewRepository = new InMe
       return;
     }
 
+    if (ctx.session.mode === "waiting_review_category") {
+      await ctx.reply("Нажмите одну из кнопок категории.", {
+        reply_markup: reviewCategoryKeyboard(),
+      });
+      return;
+    }
+
     if (ctx.session.mode === "waiting_review_text") {
       const target = ctx.session.reviewTarget ?? "не указан";
-      const query = normalizeIdentifier(target);
-      const parentObject = query.parentNormalizedValue
-        ? await repository.findObjectByIdentifier("website", query.parentNormalizedValue)
-        : null;
-      const object = await repository.ensureObjectWithIdentifier({
-        type: query.objectType,
-        parentObjectId: parentObject?.id ?? null,
-        platformKey: query.platformKey,
-        title: query.displayValue || query.normalizedValue || target,
-        identifierType: query.identifierType,
-        normalizedValue: query.normalizedValue,
-        displayValue: query.displayValue || target,
-      });
-
-      await repository.createReview({
-        objectId: object.id,
+      await createReviewForTarget(repository, {
+        target,
         authorUserId: String(ctx.from?.id ?? "unknown"),
         rating: ctx.session.reviewRating ?? "neutral",
-        category: "general",
+        category: ctx.session.reviewCategory ?? "other",
         text,
         evidenceRefs: [],
-        status: "pending",
       });
 
       ctx.session.mode = "idle";
       delete ctx.session.reviewTarget;
       delete ctx.session.reviewRating;
+      delete ctx.session.reviewCategory;
 
       await ctx.reply(
         [

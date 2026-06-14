@@ -90,6 +90,13 @@ parent_object_id: example.com
 - [Концепция поиска](docs/SEARCH_CONCEPT.md)
 - [База данных](docs/DATABASE.md)
 
+## Backend API
+
+- `GET /health` — состояние сервиса.
+- `POST /search` — поиск по идентификатору.
+- `GET /objects/:id` — карточка объекта со сводкой опубликованных отзывов.
+- `POST /reviews` — создание отзыва со статусом `pending`.
+
 ## Локальный запуск
 
 ```bash

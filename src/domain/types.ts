@@ -29,6 +29,8 @@ export type ReviewRating = "positive" | "neutral" | "negative";
 
 export type ReviewStatus = "pending" | "published" | "rejected" | "hidden";
 
+export type ReviewCategory = "fraud" | "non_delivery" | "quality" | "communication" | "other";
+
 export interface ReviewObject {
   id: string;
   type: ObjectType;
@@ -54,7 +56,7 @@ export interface Review {
   objectId: string;
   authorUserId: string;
   rating: ReviewRating;
-  category: string;
+  category: ReviewCategory;
   text: string;
   evidenceRefs: string[];
   status: ReviewStatus;
@@ -80,4 +82,11 @@ export interface SearchResult {
   parentObject: ReviewObject | null;
   similarObjects: ReviewObject[];
   reviews: Review[];
+}
+
+export interface ReviewSummary {
+  total: number;
+  positive: number;
+  neutral: number;
+  negative: number;
 }

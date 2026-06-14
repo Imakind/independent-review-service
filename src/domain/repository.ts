@@ -20,7 +20,7 @@ export interface ReviewRepository {
     objectId: string;
     authorUserId: string;
     rating: Review["rating"];
-    category: string;
+    category: Review["category"];
     text: string;
     evidenceRefs: string[];
     status: Review["status"];
@@ -147,7 +147,7 @@ export class InMemoryReviewRepository implements ReviewRepository {
     objectId: string;
     authorUserId: string;
     rating: Review["rating"];
-    category: string;
+    category: Review["category"];
     text: string;
     evidenceRefs: string[];
     status: Review["status"];

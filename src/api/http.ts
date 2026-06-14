@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { normalizeIdentifier } from "../domain/normalization.js";
 import type { ReviewRepository } from "../domain/repository.js";
+import { createReviewForTarget, isReviewCategory, isReviewRating, summarizeReviews } from "../domain/reviews.js";
 import { searchObject } from "../domain/search.js";
 
 type ApiHandler = (request: IncomingMessage, response: ServerResponse, url: URL) => Promise<void>;
@@ -36,6 +37,10 @@ export function createApiServer(repository: ReviewRepository): Server {
       return getObject;
     }
 
+    if (method === "POST" && url.pathname === "/reviews") {
+      return postReview;
+    }
+
     return null;
   }
 
@@ -68,7 +73,58 @@ export function createApiServer(repository: ReviewRepository): Server {
     }
 
     const reviews = await repository.findReviewsByObjectId(object.id);
-    sendJson(response, 200, { object, reviews });
+    sendJson(response, 200, {
+      object,
+      summary: summarizeReviews(reviews),
+      reviews,
+    });
+  }
+
+  async function postReview(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const body = await readJson<{
+      target?: unknown;
+      authorUserId?: unknown;
+      rating?: unknown;
+      category?: unknown;
+      text?: unknown;
+      evidenceRefs?: unknown;
+    }>(request);
+
+    if (typeof body.target !== "string" || !body.target.trim()) {
+      sendJson(response, 400, { error: "target_required" });
+      return;
+    }
+
+    if (!isReviewRating(body.rating)) {
+      sendJson(response, 400, { error: "rating_invalid" });
+      return;
+    }
+
+    if (!isReviewCategory(body.category)) {
+      sendJson(response, 400, { error: "category_invalid" });
+      return;
+    }
+
+    if (typeof body.text !== "string" || body.text.trim().length < 10) {
+      sendJson(response, 400, { error: "text_too_short" });
+      return;
+    }
+
+    const evidenceRefs =
+      Array.isArray(body.evidenceRefs) && body.evidenceRefs.every((item) => typeof item === "string")
+        ? body.evidenceRefs
+        : [];
+
+    const result = await createReviewForTarget(repository, {
+      target: body.target,
+      authorUserId: typeof body.authorUserId === "string" && body.authorUserId ? body.authorUserId : "api",
+      rating: body.rating,
+      category: body.category,
+      text: body.text.trim(),
+      evidenceRefs,
+    });
+
+    sendJson(response, 201, result);
   }
 }
 

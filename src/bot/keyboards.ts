@@ -31,3 +31,18 @@ export function reviewRatingKeyboard(): InlineKeyboard {
     .row()
     .text("Отмена", "flow:cancel");
 }
+
+export function reviewCategoryKeyboard(): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("Мошенничество", "review:category:fraud")
+    .row()
+    .text("Неисполнение сделки", "review:category:non_delivery")
+    .row()
+    .text("Качество", "review:category:quality")
+    .row()
+    .text("Коммуникация", "review:category:communication")
+    .row()
+    .text("Другое", "review:category:other")
+    .row()
+    .text("Отмена", "flow:cancel");
+}

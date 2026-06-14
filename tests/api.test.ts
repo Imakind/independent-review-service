@@ -55,4 +55,25 @@ describe("API", () => {
 
     expect(response.status).toBe(400);
   });
+
+  it("creates a pending review", async () => {
+    const response = await fetch(`${baseUrl}/reviews`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        target: "https://t.me/seller123",
+        authorUserId: "api-test",
+        rating: "negative",
+        category: "fraud",
+        text: "Оплата была, товар не отправили.",
+        evidenceRefs: ["https://example.com/evidence"],
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(201);
+    expect(body.object.platformKey).toBe("telegram");
+    expect(body.review.status).toBe("pending");
+    expect(body.review.category).toBe("fraud");
+  });
 });
